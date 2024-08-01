@@ -1,0 +1,9 @@
+[package]
+name = "lox-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.11", features = ["derive"] }
+inline_colorization = "0.1.6"
+lazy_static = "1.5.0"
