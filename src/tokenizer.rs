@@ -253,13 +253,13 @@ impl<'a> Tokenizer<'a> {
         let mut double_string = self.consume_digits();
         // Consume decimal point if exists,
         let iter_save = self.iter.clone();
-        let start_pos_save = self.start_pos.clone();
+        let current_pos_save = self.current_pos.clone();
         if self.is_char_next('.') {
             self.next();
             let post_dot_digit = self.consume_digits();
             if post_dot_digit.is_empty() {
                 self.iter = iter_save;
-                self.start_pos = start_pos_save;
+                self.current_pos = current_pos_save;
             } else {
                 double_string.push('.');
                 double_string.push_str(post_dot_digit.as_str());
@@ -293,7 +293,7 @@ impl<'a> Tokenizer<'a> {
                 '\t' => self.current_pos.col += self.tabsize,
                 _ => self.current_pos.col += 1,
             }
-            self.current_pos.idx += 1;
+            self.current_pos.idx += ch.len_utf8();
             return Some(ch);
         }
         return None;
@@ -341,8 +341,292 @@ impl<'a> Tokenizer<'a> {
             token_type: token_type,
             value: value,
             lexeme: self.input[self.start_pos.idx..self.current_pos.idx].to_string(),
-            position: self.current_pos,
+            position: self.start_pos,
         });
         self.start_pos = self.current_pos;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{interpreter::DEFAULT_TAB_SIZE, tokenizer::Tokenizer};
+
+    use super::*;
+
+    macro_rules! assert_err {
+        ($input:expr, $expected_error:pat) => {
+            assert!(matches!($input, Err($expected_error)))
+        };
+    }
+
+    fn extract_token_types_and_values(tokens: Vec<Token>) -> Vec<(TokenType, LoxValue)> {
+        tokens
+            .into_iter()
+            .map(|token: Token| (token.token_type, token.value))
+            .collect()
+    }
+
+    fn extract_token_types(tokens: Vec<Token>) -> Vec<TokenType> {
+        tokens.into_iter().map(|token| token.token_type).collect()
+    }
+
+    fn extract_token_positions(tokens: Vec<Token>) -> Vec<(usize, usize, usize)> {
+        tokens
+            .into_iter()
+            .map(|token| (token.position.idx, token.position.line, token.position.col))
+            .collect()
+    }
+
+    fn extract_token_lexemes(tokens: Vec<Token>) -> Vec<String> {
+        tokens.into_iter().map(|token| token.lexeme).collect()
+    }
+
+    fn token_type_check(input: &str, expected: &[TokenType]) {
+        let tokenizer = Tokenizer::tokenize(input, DEFAULT_TAB_SIZE as usize).unwrap();
+        assert_eq!(extract_token_types(tokenizer.tokens), expected);
+    }
+
+    fn token_type_checks(test_cases: &[(&str, Vec<TokenType>)]) {
+        for (input, expected) in test_cases {
+            token_type_check(input, expected)
+        }
+    }
+
+    #[test]
+    fn test_all_valid_tokens_isolated() {
+        for (input, result) in [
+            ("(", (TokenType::LeftParen, LoxValue::Nil)),
+            (")", (TokenType::RightParen, LoxValue::Nil)),
+            ("{", (TokenType::LeftBrace, LoxValue::Nil)),
+            ("}", (TokenType::RightBrace, LoxValue::Nil)),
+            (",", (TokenType::Comma, LoxValue::Nil)),
+            (".", (TokenType::Dot, LoxValue::Nil)),
+            ("-", (TokenType::Minus, LoxValue::Nil)),
+            ("+", (TokenType::Plus, LoxValue::Nil)),
+            (";", (TokenType::Semicolon, LoxValue::Nil)),
+            ("/", (TokenType::Slash, LoxValue::Nil)),
+            ("*", (TokenType::Star, LoxValue::Nil)),
+            ("!", (TokenType::Bang, LoxValue::Nil)),
+            ("!=", (TokenType::BangEqual, LoxValue::Nil)),
+            ("=", (TokenType::Equal, LoxValue::Nil)),
+            ("==", (TokenType::EqualEqual, LoxValue::Nil)),
+            (">", (TokenType::Greater, LoxValue::Nil)),
+            (">=", (TokenType::GreaterEqual, LoxValue::Nil)),
+            ("<", (TokenType::Less, LoxValue::Nil)),
+            ("<=", (TokenType::LessEqual, LoxValue::Nil)),
+            ("bruh", (TokenType::Identifier, LoxValue::Nil)),
+            (
+                "\"hello\"",
+                (
+                    TokenType::String,
+                    LoxValue::String(Box::new(String::from("hello"))),
+                ),
+            ),
+            (
+                "\"\nhello\n\"",
+                (
+                    TokenType::String,
+                    LoxValue::String(Box::new(String::from("\nhello\n"))),
+                ),
+            ),
+            ("3.141", (TokenType::Number, LoxValue::Number(3.141))),
+            ("3", (TokenType::Number, LoxValue::Number(3.0))),
+            ("and", (TokenType::And, LoxValue::Nil)),
+            ("class", (TokenType::Class, LoxValue::Nil)),
+            ("else", (TokenType::Else, LoxValue::Nil)),
+            ("false", (TokenType::False, LoxValue::Boolean(false))),
+            ("fun", (TokenType::Fun, LoxValue::Nil)),
+            ("for", (TokenType::For, LoxValue::Nil)),
+            ("if", (TokenType::If, LoxValue::Nil)),
+            ("nil", (TokenType::Nil, LoxValue::Nil)),
+            ("or", (TokenType::Or, LoxValue::Nil)),
+            ("print", (TokenType::Print, LoxValue::Nil)),
+            ("return", (TokenType::Return, LoxValue::Nil)),
+            ("super", (TokenType::Super, LoxValue::Nil)),
+            ("this", (TokenType::This, LoxValue::Nil)),
+            ("true", (TokenType::True, LoxValue::Boolean(true))),
+            ("var", (TokenType::Var, LoxValue::Nil)),
+            ("while", (TokenType::While, LoxValue::Nil)),
+        ] {
+            let tokenizer = Tokenizer::tokenize(input, DEFAULT_TAB_SIZE as usize).unwrap();
+            assert_eq!(
+                extract_token_types_and_values(tokenizer.tokens),
+                vec![result, (TokenType::Eof, LoxValue::Nil)]
+            );
+        }
+    }
+
+    #[test]
+    fn test_line_comment() {
+        token_type_checks(&[
+            (
+                "print x; // print y;",
+                vec![
+                    TokenType::Print,
+                    TokenType::Identifier,
+                    TokenType::Semicolon,
+                    TokenType::Eof,
+                ],
+            ),
+            ("( // )", vec![TokenType::LeftParen, TokenType::Eof]),
+            (
+                "( // )\n)",
+                vec![TokenType::LeftParen, TokenType::RightParen, TokenType::Eof],
+            ),
+        ])
+    }
+
+    #[test]
+    fn test_empty_program() {
+        token_type_check("", &[TokenType::Eof])
+    }
+
+    #[test]
+    fn test_idx_line_col_calculations() {
+        let input = ";+,.
+,==.=)
+<=\t>==,  )
+!=3.141\"hello
+
+\"  \t 3.twelve\tclass世
+\"bongo\"// comment!!!!
+0.25}{}{";
+        let tokenizer = Tokenizer::tokenize(input, DEFAULT_TAB_SIZE as usize).unwrap();
+        assert_eq!(
+            extract_token_positions(tokenizer.tokens),
+            vec![
+                (0, 1, 1),
+                (1, 1, 2),
+                (2, 1, 3),
+                (3, 1, 4),
+                (5, 2, 1),
+                (6, 2, 2),
+                (8, 2, 4),
+                (9, 2, 5),
+                (10, 2, 6),
+                (12, 3, 1),
+                (15, 3, 7),
+                (17, 3, 9),
+                (18, 3, 10),
+                (21, 3, 13),
+                (23, 4, 1),
+                (25, 4, 3),
+                (30, 4, 8),
+                (43, 6, 9),
+                (44, 6, 10),
+                (45, 6, 11),
+                (52, 6, 21),
+                (61, 7, 1),
+                (83, 8, 1),
+                (87, 8, 5),
+                (88, 8, 6),
+                (89, 8, 7),
+                (90, 8, 8),
+                (91, 8, 9)
+            ]
+        )
+    }
+
+    #[test]
+    fn test_lexeme_extraction() {
+        let input = r#"
+        // Single-character tokens
+        (){}.,-+;/* 
+
+        // One or two character tokens
+        ! != = == > >= < <= 
+
+        // Literals
+        identifier "string" 123 45.67 
+
+        // Multiline strings
+        "multiline
+string"
+        "another
+multiline
+string"
+
+        // Keywords
+        and class else false for fun if nil or print return super this true var while
+        "#;
+        let tokenizer = Tokenizer::tokenize(input, DEFAULT_TAB_SIZE as usize).unwrap();
+        assert_eq!(
+            extract_token_lexemes(tokenizer.tokens),
+            vec![
+                "(",
+                ")",
+                "{",
+                "}",
+                ".",
+                ",",
+                "-",
+                "+",
+                ";",
+                "/",
+                "*",
+                "!",
+                "!=",
+                "=",
+                "==",
+                ">",
+                ">=",
+                "<",
+                "<=",
+                "identifier",
+                "\"string\"",
+                "123",
+                "45.67",
+                "\"multiline\nstring\"",
+                "\"another\nmultiline\nstring\"",
+                "and",
+                "class",
+                "else",
+                "false",
+                "for",
+                "fun",
+                "if",
+                "nil",
+                "or",
+                "print",
+                "return",
+                "super",
+                "this",
+                "true",
+                "var",
+                "while",
+                "EOF"
+            ]
+        );
+    }
+
+    #[test]
+    fn test_unexpected_character() {
+        assert_err!(
+            Tokenizer::tokenize("#", DEFAULT_TAB_SIZE as usize),
+            TokenizerError::UnexpectedCharacter { .. }
+        );
+        assert_err!(
+            Tokenizer::tokenize("^", DEFAULT_TAB_SIZE as usize),
+            TokenizerError::UnexpectedCharacter { .. }
+        );
+        assert_err!(
+            Tokenizer::tokenize("(£)", DEFAULT_TAB_SIZE as usize),
+            TokenizerError::UnexpectedCharacter { .. }
+        );
+        assert_err!(
+            Tokenizer::tokenize("'", DEFAULT_TAB_SIZE as usize),
+            TokenizerError::UnexpectedCharacter { .. }
+        )
+    }
+
+    #[test]
+    fn test_unterminated_string_literal() {
+        assert_err!(
+            Tokenizer::tokenize(
+                "\" hello i am an unterminated string literal!",
+                DEFAULT_TAB_SIZE as usize
+            ),
+            TokenizerError::UnterminatedStringLiteral { .. }
+        )
     }
 }

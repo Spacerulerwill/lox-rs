@@ -12,6 +12,8 @@ macro_rules! print_error {
     };
 }
 
+pub const DEFAULT_TAB_SIZE: u8 = 4;
+
 #[derive(Debug)]
 pub enum RuntimeError {
     BinaryExprTypeError(Rc<LoxValue>, Token, Rc<LoxValue>),

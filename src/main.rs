@@ -1,5 +1,6 @@
 use crate::interpreter::Interpreter;
 use clap::Parser as ClapParser;
+use interpreter::DEFAULT_TAB_SIZE;
 use std::{
     fs,
     io::{stdin, stdout, Write},
@@ -20,7 +21,7 @@ struct Args {
     #[arg()]
     filepath: Option<String>,
 
-    #[arg(short, long, default_value_t = 4)]
+    #[arg(short, long, default_value_t = DEFAULT_TAB_SIZE)]
     tabsize: u8,
 }
 
