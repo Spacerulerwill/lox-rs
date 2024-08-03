@@ -26,7 +26,7 @@ pub enum RuntimeError {
         left_paren: Token,
         expected: usize,
         recieved: usize,
-    },
+    }
 }
 
 pub type Scope = HashMap<String, Rc<LoxValue>>;
@@ -45,6 +45,13 @@ impl<'a> Interpreter {
             Rc::new(LoxValue::NativeFunction(Box::new(NativeFunction {
                 arity: 0,
                 callable: stdlib::clock,
+            }))),
+        );
+        globals.insert(
+            String::from("input"),
+            Rc::new(LoxValue::NativeFunction(Box::new(NativeFunction {
+                arity: 1,
+                callable: stdlib::input,
             }))),
         );
         Self {
@@ -170,6 +177,6 @@ fn print_runtime_err_message(err: RuntimeError) {
             left_paren.position.line,
             left_paren.position.col,
             "Expected {expected} arguments, but recieved {recieved}"
-        ),
+        )
     }
 }

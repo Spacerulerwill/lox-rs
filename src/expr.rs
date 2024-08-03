@@ -282,7 +282,7 @@ impl Expr {
                             recieved: evaluated_arguments.len(),
                         });
                     }
-                    let value = f.call(interpreter, evaluated_arguments);
+                    let value = f.call(interpreter, evaluated_arguments)?;
                     return Ok(value);
                 }
                 Err(RuntimeError::InvalidCallable(paren.clone(), callee))
