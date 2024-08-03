@@ -280,7 +280,7 @@ impl Expr {
                     let value = f.call(interpreter, evaluated_arguments);
                     return Ok(value);
                 }
-                Err(RuntimeError::InvalidCallable(paren.clone()))
+                Err(RuntimeError::InvalidCallable(paren.clone(), callee))
             }
         }
     }

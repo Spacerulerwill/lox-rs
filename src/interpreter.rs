@@ -21,7 +21,7 @@ pub enum RuntimeError {
     BinaryExprTypeError(Rc<LoxValue>, Token, Rc<LoxValue>),
     UnaryExprTypeError(Rc<LoxValue>, Token),
     UndefinedIdentifier(Token),
-    InvalidCallable(Token),
+    InvalidCallable(Token, Rc<LoxValue>),
     IncorrectArgumentCount {
         left_paren: Token,
         expected: usize,
@@ -154,11 +154,12 @@ fn print_runtime_err_message(err: RuntimeError) {
             "No identifier exists with name '{}'",
             &name.lexeme
         ),
-        RuntimeError::InvalidCallable(identifier) => print_error!(
+        RuntimeError::InvalidCallable(identifier, callee) => print_error!(
             "Type error",
             identifier.position.line,
             identifier.position.col,
-            "Attempt to call on non callable type"
+            "Attempt to call on non callable type '{}'",
+            callee.get_type_string_repr()
         ),
         RuntimeError::IncorrectArgumentCount {
             left_paren,
