@@ -1,6 +1,8 @@
 use crate::{
     bad_print,
+    function::NativeFunction,
     parser::{Parser, ParserError},
+    stdlib,
     tokenizer::{Token, Tokenizer, TokenizerError},
     value::LoxValue,
 };
@@ -18,7 +20,13 @@ pub const DEFAULT_TAB_SIZE: u8 = 4;
 pub enum RuntimeError {
     BinaryExprTypeError(Rc<LoxValue>, Token, Rc<LoxValue>),
     UnaryExprTypeError(Rc<LoxValue>, Token),
-    UndefinedVariable(Token),
+    UndefinedIdentifier(Token),
+    InvalidCallable(Token),
+    IncorrectArgumentCount {
+        left_paren: Token,
+        expected: usize,
+        recieved: usize,
+    },
 }
 
 pub type Scope = HashMap<String, Rc<LoxValue>>;
@@ -26,12 +34,22 @@ pub type Scope = HashMap<String, Rc<LoxValue>>;
 #[derive(Debug)]
 pub struct Interpreter {
     pub scopes: Vec<Scope>,
+    pub globals: Scope,
 }
 
 impl<'a> Interpreter {
     pub fn new() -> Self {
+        let mut globals = Scope::new();
+        globals.insert(
+            String::from("clock"),
+            Rc::new(LoxValue::NativeFunction(Box::new(NativeFunction {
+                arity: 0,
+                callable: stdlib::clock,
+            }))),
+        );
         Self {
             scopes: vec![Scope::new()],
+            globals: globals,
         }
     }
 
@@ -101,6 +119,12 @@ fn print_parser_err_message(err: ParserError) {
             token.position.col,
             "Invalid assigment target"
         ),
+        ParserError::TooManyArguments { left_paren } => print_error!(
+            "Syntax Error",
+            left_paren.position.line,
+            left_paren.position.col,
+            "Too many arguments for function"
+        ),
     }
 }
 
@@ -123,12 +147,28 @@ fn print_runtime_err_message(err: RuntimeError) {
             &operator.lexeme,
             operand.get_type_string_repr()
         ),
-        RuntimeError::UndefinedVariable(name) => print_error!(
+        RuntimeError::UndefinedIdentifier(name) => print_error!(
             "Name Error",
             name.position.line,
             name.position.col,
-            "No variable exists with name '{}'",
+            "No identifier exists with name '{}'",
             &name.lexeme
+        ),
+        RuntimeError::InvalidCallable(identifier) => print_error!(
+            "Type error",
+            identifier.position.line,
+            identifier.position.col,
+            "Attempt to call on non callable type"
+        ),
+        RuntimeError::IncorrectArgumentCount {
+            left_paren,
+            expected,
+            recieved,
+        } => print_error!(
+            "Runtime Error",
+            left_paren.position.line,
+            left_paren.position.col,
+            "Expected {expected} arguments, but recieved {recieved}"
         ),
     }
 }

@@ -7,8 +7,10 @@ use std::{
 };
 
 mod expr;
+mod function;
 mod interpreter;
 mod parser;
+mod stdlib;
 mod stmt;
 mod tokenizer;
 mod value;

@@ -1,7 +1,10 @@
 use std::fmt;
 
+use crate::function::NativeFunction;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum LoxValue {
+    NativeFunction(Box<NativeFunction>),
     String(Box<String>),
     Number(f64),
     Boolean(bool),
@@ -16,6 +19,7 @@ impl LoxValue {
             LoxValue::Number(_) => "number",
             LoxValue::Boolean(_) => "boolean",
             LoxValue::Nil => "nil",
+            LoxValue::NativeFunction(_) => "function",
         }
     }
 
@@ -36,6 +40,9 @@ impl fmt::Display for LoxValue {
             LoxValue::Number(number) => write!(f, "{}", number),
             LoxValue::Boolean(bool) => write!(f, "{}", bool),
             LoxValue::Nil => write!(f, "nil"),
+            LoxValue::NativeFunction(native_function) => {
+                write!(f, "<fn at {:?}>", native_function.callable)
+            }
         }
     }
 }

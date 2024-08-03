@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::rc::Rc;
 
+use crate::function::Callable;
 use crate::interpreter::{Interpreter, RuntimeError};
 use crate::tokenizer::{Token, TokenType};
 use crate::value::LoxValue;
@@ -20,6 +21,11 @@ pub enum Expr {
         left: Box<Expr>,
         operator: Token,
         right: Box<Expr>,
+    },
+    Call {
+        callee: Box<Expr>,
+        paren: Token,
+        arguments: Vec<Expr>,
     },
     Grouping {
         expression: Box<Expr>,
@@ -53,7 +59,7 @@ impl Expr {
                 if updated {
                     Ok(new_value)
                 } else {
-                    Err(RuntimeError::UndefinedVariable(name.clone()))
+                    Err(RuntimeError::UndefinedIdentifier(name.clone()))
                 }
             }
             Expr::Binary {
@@ -248,7 +254,33 @@ impl Expr {
                         return Ok(value.clone());
                     }
                 }
-                return Err(RuntimeError::UndefinedVariable(name.clone()));
+                if let Some(value) = interpreter.globals.get(&name.lexeme) {
+                    return Ok(value.clone());
+                }
+                return Err(RuntimeError::UndefinedIdentifier(name.clone()));
+            }
+            Expr::Call {
+                callee,
+                paren,
+                arguments,
+            } => {
+                let callee = callee.evaluate(interpreter)?;
+                let mut evaluated_arguments = Vec::new();
+                for argument in arguments {
+                    evaluated_arguments.push(argument.evaluate(interpreter)?);
+                }
+                if let LoxValue::NativeFunction(f) = callee.borrow() {
+                    if evaluated_arguments.len() != f.arity() {
+                        return Err(RuntimeError::IncorrectArgumentCount {
+                            left_paren: paren.clone(),
+                            expected: f.arity(),
+                            recieved: evaluated_arguments.len(),
+                        });
+                    }
+                    let value = f.call(interpreter, evaluated_arguments);
+                    return Ok(value);
+                }
+                Err(RuntimeError::InvalidCallable(paren.clone()))
             }
         }
     }

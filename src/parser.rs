@@ -32,9 +32,12 @@ equality → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term → factor ( ( "-" | "+" ) factor )* ;
 factor → unary ( ( "/" | "*" ) unary )* ;
-unary → ( "!" | "-" ) unary | primary ;
+unary → ( "!" | "-" ) unary | call ;
+call → primary ( "(" arguments? ")" )* ;
 primary → NUMBER | STRING | "true" | "false" | "nil"
 | "(" expression ")" | IDENTIFIER;
+
+arguments → expression ( "," expression )* ;
 */
 
 use crate::{
@@ -50,6 +53,7 @@ pub enum ParserError {
     ExpectedExpression(TokenPosition),
     ExpectedToken { expected: TokenType, found: Token },
     InvalidAssignmentTarget(Token),
+    TooManyArguments { left_paren: Token },
 }
 
 // Recursive descent parser based on grammar above
@@ -353,7 +357,42 @@ impl<'a> Parser<'a> {
                 right: Box::new(right),
             });
         }
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> Result<Expr, ParserError> {
+        let mut expr = self.primary()?;
+        loop {
+            if let Some(left_paren) = self.matches(&[TokenType::LeftParen]) {
+                expr = self.finish_call(expr, left_paren)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, callee: Expr, left_paren: Token) -> Result<Expr, ParserError> {
+        let mut arguments = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            loop {
+                if arguments.len() >= 255 {
+                    return Err(ParserError::TooManyArguments {
+                        left_paren: left_paren,
+                    });
+                }
+                arguments.push(self.expression()?);
+                if !self.matches(&[TokenType::Comma]).is_some() {
+                    break;
+                }
+            }
+        }
+        self.consume(TokenType::RightParen)?;
+        Ok(Expr::Call {
+            callee: Box::new(callee),
+            paren: left_paren,
+            arguments: arguments,
+        })
     }
 
     fn primary(&mut self) -> Result<Expr, ParserError> {
