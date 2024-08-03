@@ -37,7 +37,7 @@ pub enum Expr {
         operator: Token,
         right: Box<Expr>,
     },
-    Variable {
+    Identifier {
         name: Token,
     },
 }
@@ -248,7 +248,7 @@ impl Expr {
                     ),
                 }
             }
-            Expr::Variable { name } => {
+            Expr::Identifier { name } => {
                 for scope in interpreter.scopes.iter_mut().rev() {
                     if let Some(value) = scope.get(&name.lexeme) {
                         return Ok(value.clone());

@@ -248,7 +248,7 @@ impl<'a> Parser<'a> {
         if let Some(equals) = self.matches(&[TokenType::Equal]) {
             let value = self.assignment()?;
             match expr {
-                Expr::Variable { name } => {
+                Expr::Identifier { name } => {
                     return Ok(Expr::Assign {
                         name: name,
                         new_value: Box::new(value),
@@ -417,7 +417,7 @@ impl<'a> Parser<'a> {
         }
 
         if let Some(token) = self.matches(&[TokenType::Identifier]) {
-            return Ok(Expr::Variable { name: token });
+            return Ok(Expr::Identifier { name: token });
         }
 
         let token = self.iter.peek().unwrap();
