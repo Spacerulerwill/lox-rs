@@ -56,6 +56,11 @@ impl Expr {
                     }
                 }
 
+                if let Some(val) = interpreter.globals.get_mut(&name.lexeme) {
+                    *val = new_value.clone();
+                    updated = true;
+                }
+
                 if updated {
                     Ok(new_value)
                 } else {
