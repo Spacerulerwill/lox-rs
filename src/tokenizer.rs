@@ -600,6 +600,69 @@ string"
     }
 
     #[test]
+    fn test_non_ascii_characters() {
+        let input = r#"var café = "piñata";"#;
+        let tokenizer = Tokenizer::tokenize(input, DEFAULT_TAB_SIZE as usize).unwrap();
+        assert_eq!(
+            extract_token_types_and_values(tokenizer.tokens),
+            vec![
+                (TokenType::Var, LoxValue::Nil),
+                (TokenType::Identifier, LoxValue::Nil),
+                (TokenType::Equal, LoxValue::Nil),
+                (TokenType::String, LoxValue::String(Box::new(String::from("piñata")))),
+                (TokenType::Semicolon, LoxValue::Nil),
+                (TokenType::Eof, LoxValue::Nil),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_mixed_input() {
+        let input = r#"var x = 3.14 + 2 * (5 / y) - "hello";"#;
+        let tokenizer = Tokenizer::tokenize(input, DEFAULT_TAB_SIZE as usize).unwrap();
+        assert_eq!(
+            extract_token_types(tokenizer.tokens),
+            vec![
+                TokenType::Var,
+                TokenType::Identifier,
+                TokenType::Equal,
+                TokenType::Number,
+                TokenType::Plus,
+                TokenType::Number,
+                TokenType::Star,
+                TokenType::LeftParen,
+                TokenType::Number,
+                TokenType::Slash,
+                TokenType::Identifier,
+                TokenType::RightParen,
+                TokenType::Minus,
+                TokenType::String,
+                TokenType::Semicolon,
+                TokenType::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_large_input() {
+        let input = "var x = 1;\n".repeat(100000);
+        let tokenizer = Tokenizer::tokenize(&input, DEFAULT_TAB_SIZE as usize).unwrap();
+        let expected_tokens: Vec<TokenType> = vec![
+            TokenType::Var,
+            TokenType::Identifier,
+            TokenType::Equal,
+            TokenType::Number,
+            TokenType::Semicolon,
+        ]
+        .into_iter()
+        .cycle()
+        .take(500000)
+        .chain(std::iter::once(TokenType::Eof))
+        .collect();
+        assert_eq!(extract_token_types(tokenizer.tokens), expected_tokens);
+    }
+
+    #[test]
     fn test_unexpected_character() {
         assert_err!(
             Tokenizer::tokenize("#", DEFAULT_TAB_SIZE as usize),
